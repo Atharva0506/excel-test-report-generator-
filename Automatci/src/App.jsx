@@ -29,7 +29,6 @@ const ExcelReportGenerator = () => {
     "LED TUBE : 2W, 24V KOEL(K2B) (D8.079.49.0.PR)": "K2B",
   };
 
-  // Helper function to apply borders to a cell
   const applyBorders = (cell) => {
     cell.border = {
       top: { style: "thin" },
@@ -46,7 +45,6 @@ const ExcelReportGenerator = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     const { fromUnit, toUnit, date, product } = formData;
     const from = parseInt(fromUnit, 10);
     const to = parseInt(toUnit, 10);
@@ -57,8 +55,6 @@ const ExcelReportGenerator = () => {
     }
 
     const units = Array.from({ length: to - from + 1 }, (_, i) => from + i);
-
-    // Shuffle units
     for (let i = units.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [units[i], units[j]] = [units[j], units[i]];
@@ -68,91 +64,123 @@ const ExcelReportGenerator = () => {
     const data = template.data(units);
 
     const workbook = new ExcelJS.Workbook();
-    let worksheet;
-
     const sheetCount = Math.ceil((to - from + 1) / 50);
+
     for (let sheetIndex = 0; sheetIndex < sheetCount; sheetIndex++) {
       const start = sheetIndex * 50;
       const end = Math.min((sheetIndex + 1) * 50, units.length);
 
-      worksheet = workbook.addWorksheet(`Sheet_${sheetIndex + 1}`);
+      const worksheet = workbook.addWorksheet(`Sheet_${sheetIndex + 1}`);
       worksheet.properties.defaultFont = { name: "Arial", size: 12 };
 
+      // Row 1: Date and DOC No.
+      const numColumns = template.header.length;
       worksheet.mergeCells("A1:B1");
-      worksheet.getCell("A1").value = `Date: ${template['date']}`;
-      worksheet.getCell("A1").alignment = { horizontal: "center" };
+      worksheet.getCell("A1").value = `Date: ${template["date"]}`;
+      worksheet.getCell("A1").alignment = { horizontal: "left" };
 
-      worksheet.mergeCells("E1:F1");
-      worksheet.getCell("E1").value = `DOC No.: SAM/QA/${template['DOC NO']}`;
-      worksheet.getCell("E1").alignment = { horizontal: "center" };
+      const docRange = `E1:${String.fromCharCode(65 + numColumns - 1)}1`;
+      worksheet.mergeCells(docRange);
+      worksheet.getCell("E1").value = `DOC No.: SAM/QA/${template["DOC NO"]}`;
+      worksheet.getCell("E1").alignment = { horizontal: "right" };
 
-      worksheet.mergeCells("A2:F2");
-      worksheet.getCell("A2").value = "SAM INTEGRATIONS PVT.LTD.";
-      worksheet.getCell("A2").alignment = { horizontal: "center" };
-      worksheet.getCell("A2").font = { bold: true, size: 16 };
+      // Row 2: Company Name (Centered)
+      const headerRange = `A2:${String.fromCharCode(65 + numColumns - 1)}2`;
+      worksheet.mergeCells(headerRange);
+      const cellA2 = worksheet.getCell("A2");
+      cellA2.value = "SAM INTEGRATIONS PVT.LTD.";
+      cellA2.alignment = { horizontal: "center", vertical: "middle" };
+      cellA2.font = { bold: true, size: 16 };
+      applyBorders(cellA2);
 
-      worksheet.mergeCells("A3:C3");
-      worksheet.getCell("A3").value = `TEST REPORT: PRODUCTION`;
+      // Row 3: Product Name and Date
+      worksheet.mergeCells("A3:D3");
+      worksheet.getCell("A3").value = `PRODUCT: ${product}`;
+      worksheet.getCell("A3").alignment = { horizontal: "left" };
+
       const today = new Date();
       const yyyy = today.getFullYear();
       const mm = String(today.getMonth() + 1).padStart(2, "0");
       const dd = String(today.getDate()).padStart(2, "0");
-      const fullDate = `${dd}/${mm}/${yyyy}`;
-      worksheet.getCell("F4").value = `DATE:${fullDate}`;
-      worksheet.mergeCells("A4:C4");
-      worksheet.getCell("A4").value = `PRODUCT: ${product}`;
+      const pDateRange = `E3:${String.fromCharCode(65 + numColumns - 1)}3`;
+      worksheet.mergeCells(pDateRange);
+      worksheet.getCell("E3").value = `DATE:${dd}/${mm}/${yyyy}`;
+      worksheet.getCell("E3").alignment = { horizontal: "right" };
 
       worksheet.addRow([]); // Empty row
 
-      worksheet.mergeCells("A5:F5");
-      worksheet.getCell("A5").value =
+      // Row 4: Report Description
+      const desRange = `A4:${String.fromCharCode(65 + numColumns - 1)}4`;
+      worksheet.mergeCells(desRange);
+      worksheet.getCell("A4").value =
         "CURRENT CONSUMPTION, OVER VOLTAGE PROTECTION LEVELS, POWER CONSUMPTION AND ON/OFF REPORT";
-      worksheet.addRow(template.header);
+      worksheet.getCell("A4").alignment = { horizontal: "left" };
 
-      const headerRow = worksheet.getRow(6);
+      // Add Header
+      worksheet.addRow(template.header);
+      const headerRow = worksheet.getRow(5);
       headerRow.eachCell((cell) => {
         cell.alignment = { horizontal: "center", vertical: "middle" };
         cell.font = { bold: true };
         applyBorders(cell);
       });
 
+      // Add Data Rows
       const rowsToAdd = data.slice(start, end);
       rowsToAdd.forEach((row) => {
         const addedRow = worksheet.addRow(row);
         addedRow.eachCell((cell) => {
           applyBorders(cell);
-          cell.alignment = {
-            vertical: "middle",
-            horizontal: "center",
-            wrapText: true,
-          };
+          cell.alignment = { vertical: "middle", wrapText: true };
         });
       });
 
-      const checkedByRow = worksheet.addRow(["CHECKED BY:", "", "", "APPROVED BY:"]);
+      // Checked By and Approved By
+      // Row for "Checked By" and "Approved By" section
+      const checkedByRow = worksheet.addRow(["Checked By", "", "", "Approved By", ""]);
 
-      // Merge cells for "CHECKED BY" and "APPROVED BY"
-      worksheet.mergeCells(`A${rowsToAdd.length + 10}:C${rowsToAdd.length + 10}`);
-      worksheet.mergeCells(`D${rowsToAdd.length + 10}:F${rowsToAdd.length + 10}`);
+      // Dynamically determine the last column (based on numColumns)
+      const lastColumn = String.fromCharCode(65 + numColumns - 1);
 
-      worksheet.getCell(`A${rowsToAdd.length + 10}`).alignment = { horizontal: "left", vertical: "middle" };
-      worksheet.getCell(`D${rowsToAdd.length + 10}`).alignment = { horizontal: "right", vertical: "middle" };
+      // Dynamically calculate the merge range based on numColumns
+      const checkedByRange = `A${checkedByRow.number}:${String.fromCharCode(
+        65 + 2
+      )}${checkedByRow.number}`; // Columns A to C for "Checked By"
+      const approvedByRange = `${String.fromCharCode(65 + 3)}${
+        checkedByRow.number
+      }:${lastColumn}${checkedByRow.number}`; 
 
-      // Apply borders
-      applyBorders(worksheet.getCell(`A${rowsToAdd.length + 10}`));
-      applyBorders(worksheet.getCell(`D${rowsToAdd.length + 10}`));
-      // Set column widths
-      worksheet.columns = template.columns;
+  
+      worksheet.mergeCells(checkedByRange);
+      worksheet.mergeCells(approvedByRange);
 
-      // Apply borders and alignment across the sheet
+
+      worksheet.getCell(`A${checkedByRow.number}`).alignment = {
+        horizontal: "left",
+      };
+      worksheet.getCell(
+        `${String.fromCharCode(65 + 3)}${checkedByRow.number}`
+      ).alignment = { horizontal: "left" };
+
+      // Column Adjustments
+      worksheet.columns = template.columns || [
+        { width: 15 },
+        { width: 15 },
+        { width: 15 },
+        { width: 15 },
+        { width: 15 },
+        { width: 15 },
+      ];
+
       worksheet.eachRow((row) => {
+        // Skip rows where any cell is part of the merged range A2:F2
+        const isMergedRange = row.getCell(1).address === "A2"; // Check the first cell of the row (A2)
+
+        if (isMergedRange) return; // Skip this row if it's within the merged range A2:F2
+
         row.eachCell((cell) => {
           applyBorders(cell);
-          cell.alignment = {
-            vertical: "middle",
-            horizontal: "center",
-            wrapText: true,
-          };
+          cell.alignment = { vertical: "middle",horizontal:"center", wrapText: true };
         });
       });
     }
@@ -180,88 +208,98 @@ const ExcelReportGenerator = () => {
     }
   };
 
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="bg-white p-6 rounded shadow-md w-full max-w-md">
-        <h2 className="text-2xl font-bold mb-4 text-center">Test Report Excel Generator</h2>
-        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="fromUnit" className="block text-sm font-medium text-gray-700">
-              From Unit No:
-            </label>
-            <input
-              type="number"
-              id="fromUnit"
-              value={formData.fromUnit}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="toUnit" className="block text-sm font-medium text-gray-700">
-              To Unit No:
-            </label>
-            <input
-              type="number"
-              id="toUnit"
-              value={formData.toUnit}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="date" className="block text-sm font-medium text-gray-700">
-              Test Date:
-            </label>
-            <input
-              type="date"
-              id="date"
-              value={formData.date}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="product" className="block text-sm font-medium text-gray-700">
-              Product Type:
-            </label>
-            <select
-              id="product"
-              value={formData.product}
-              onChange={handleChange}
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            >
-              <option value="">Select Value</option>
-              {Object.keys(productMap).map((key) => (
-                <option key={key} value={key}>
-                  {productMap[key]}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex justify-center">
-            <button
-              type="submit"
-              className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-md font-medium focus:outline-none hover:bg-blue-700"
-            >
-              Generate Excel Report
-            </button>
-          </div>
-        </form>
-      </div>
+    <div className="bg-white p-6 rounded shadow-md w-full max-w-md">
+      <h2 className="text-2xl font-bold mb-4 text-center">
+        Test Report Excel Generator
+      </h2>
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label
+            htmlFor="fromUnit"
+            className="block text-sm font-medium text-gray-700"
+          >
+            From Unit No:
+          </label>
+          <input
+            type="number"
+            id="fromUnit"
+            value={formData.fromUnit}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            required
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-3"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="toUnit"
+            className="block text-sm font-medium text-gray-700"
+          >
+            To Unit No:
+          </label>
+          <input
+            type="number"
+            id="toUnit"
+            value={formData.toUnit}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            required
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-3"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="date"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Test Date:
+          </label>
+          <input
+            type="date"
+            id="date"
+            value={formData.date}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            required
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-3"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="product"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Product Type:
+          </label>
+          <select
+            id="product"
+            value={formData.product}
+            onChange={handleChange}
+            required
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-3"
+          >
+            <option value="">Select Value</option>
+            {Object.keys(productMap).map((key) => (
+              <option key={key} value={key}>
+                {productMap[key]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex justify-center">
+          <button
+            type="submit"
+            className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-md font-medium focus:outline-none hover:bg-blue-700"
+          >
+            Generate Excel Report
+          </button>
+        </div>
+      </form>
     </div>
+  </div>
+  
   );
 };
 
